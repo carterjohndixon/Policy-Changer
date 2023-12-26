@@ -1,8 +1,6 @@
 import os
 from docx import Document
 
-# Allow for the replacer to take in a dictionary of the field_to_replace (key) and the replacement_text (value)
-
 def replacer(document, fields: dict[str, str]):
     for paragraph in document.paragraphs:
         for field_key in fields.keys():
@@ -16,16 +14,69 @@ def replacer(document, fields: dict[str, str]):
                     if field_key in cell.text:
                         cell.text = cell.text.replace(field_key, fields.get(field_key))
 
+def does_field_exist_file(doc_path, field_to_replace) -> bool:
+    document = Document(doc_path.strip())
+    for paragraph in document.paragraphs:
+        if field_to_replace in paragraph.text:
+            return True
+
+    for table in document.tables:
+        for row in table.rows:
+            for cell in row.cells:
+                if field_to_replace in cell.text:
+                    return True
+
+    return False
+
+def does_field_exist_folder(doc_path, field_to_replace):
+    for root, d, files in os.walk(doc_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            for x in d:
+                if x not in file_path:
+                    if file_path.endswith('.docx'):
+                        document = Document(file_path)
+                        for paragraph in document.paragraphs:
+                            if field_to_replace in paragraph.text:
+                                return True
+
+                        for table in document.tables:
+                            for row in table.rows:
+                                for cell in row.cells:
+                                    if field_to_replace in cell.text:
+                                        return True
+
+    return False
+
+def return_files_not_found_folders(doc_path, field_to_replace):
+    files_not_found = []
+    for root, d, files in os.walk(doc_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            for x in d:
+                if x not in file_path:
+                    if file_path.endswith('.docx'):
+                        if not does_field_exist_folder(file_path, field_to_replace):
+                            files_not_found.append(file_path)
+
+    return files_not_found
+
 def find_and_replace_field_single_file(doc_path, modified_path_ques):
     document = Document(doc_path.strip())
 
     fields_dict: dict[str, str] = dict()
 
     while True:
-        field_to_replace = input("Enter the field to replace (enter Q to quit): ")
+        field_to_replace = input("Enter the field to replace (enter Q to quit or if done applying changes): ")
 
         if field_to_replace == 'Q' or field_to_replace == 'q':
             break
+
+        is_field: bool = does_field_exist_file(doc_path, field_to_replace)
+        while is_field == False:
+            print(f"Field: {field_to_replace} does not exist in: {doc_path}")
+            field_to_replace = input("Enter the field to replace (enter Q to quit or if done applying changes): ")
+            is_field = does_field_exist_file(doc_path, field_to_replace)
 
         replacement_text = input(f"Enter what to change {field_to_replace} to: ")
         fields_dict[field_to_replace] = replacement_text
@@ -54,64 +105,145 @@ def find_and_replace_field_single_file(doc_path, modified_path_ques):
         print("No changes applied. Exiting program.")
 
 def find_and_replace_field_folder(folder_directory, fields: dict[str, str]):
-    for root, _, files in os.walk(folder_directory):
+    for root, d, files in os.walk(folder_directory):
         for file in files:
             file_path = os.path.join(root, file)
-            if file_path.endswith('.docx'):
-                doc = Document(file_path)
-                replacer(doc, fields)
-                doc.save(file_path)
-                print("Field replacement complete. Modified document saved as:", file_path)
+            for x in d:
+                if x not in file_path:
+                    if file_path.endswith('.docx'):
+                        doc = Document(file_path)
+                        replacer(doc, fields)
+                        doc.save(file_path)
+                        print("Field replacement complete. Modified document saved as:", file_path)
+
+def get_filename(file_path):
+    return os.path.basename(file_path)
+
+def get_files(fields_dict, doc_path):
+    files_found = []
+
+    for root, d, files in os.walk(doc_path):
+        for file in files:
+            file_path = os.path.join(root, file)
+            for x in d:
+                if x not in file_path:
+                    if file_path.endswith('.docx'):
+                        document = Document(file_path)
+                        for paragraph in document.paragraphs:
+                            for field, replacement in fields_dict.items():
+                                if field in paragraph.text:
+                                    if file_path not in files_found:
+                                        files_found.append(file_path)
+                                        break
+
+                        for table in document.tables:
+                            for row in table.rows:
+                                for cell in row.cells:
+                                    for field, replacement in fields_dict.items():
+                                        if field in cell.text:
+                                            if file_path not in files_found:
+                                                files_found.append(file_path)
+                                                break
+    return files_found
 
 def apply_replacements(fields_dict, doc_path):
     if len(fields_dict) > 0:
         print("\nField changes:")
         for field, replacement in fields_dict.items():
-            print(f"{field} -> {replacement}")
+            print(f"Field: {field} -> {replacement}")
+            files_found = get_files(fields_dict, doc_path)
+            for file_path in files_found:
+                file_name = get_filename(file_path)
+                print(f"  - File: {file_name}")
 
         confirm = input("\nDo you want to apply these changes? (Y/N): ")
         if confirm.upper() == 'Y':
-            for root, _, files in os.walk(doc_path):
+            for root, d, files in os.walk(doc_path):
                 for file in files:
                     file_path = os.path.join(root, file)
-                    if file_path.endswith('.docx'):
-                        doc = Document(file_path)
-                        replacer(doc, fields_dict)
-                        doc.save(file_path)
-                        print("Field replacement complete. Modified document saved as:", file_path)
+                    for x in d:
+                        if x not in file_path:
+                            if file_path.endswith('.docx'):
+                                doc = Document(file_path)
+                                replacer(doc, fields_dict)
+                                doc.save(file_path)
+                                print("Field replacement complete. Modified document saved as:", file_path)
         elif confirm.upper() == 'N':
-            for field, replacement in fields_dict.items():
-                replacement_text = input(f"Enter what to change {replacement} to: ")
-                fields_dict[field] = replacement_text
-            apply_replacements(fields_dict, doc_path)
+            replacement_text = input(f"Enter what to change {replacement} to (Press Q to quit): ")
+            if replacement_text.upper() == 'Q' or replacement_text == 'q':
+                print("No changes applied. Exiting program.")
+                return
+            else:
+                for field, replacement in fields_dict.items():
+                    fields_dict[field] = replacement_text
+                apply_replacements(fields_dict, doc_path)
         else:
             print("No changes applied. Exiting program.")
     else:
         print("No changes applied. Exiting program.")
 
 def replacements(doc_path):
+    doc_path = doc_path.strip()
     fields_dict: dict[str, str] = dict()
 
     while True:
-        field_to_replace = input("Enter the field to replace (enter Q to quit): ")
+        field_to_replace = input("Enter the field to replace (enter Q to quit or if done applying changes): ")
+
+        if field_to_replace == 'Q' or field_to_replace == 'q':
+            break
+
+        is_field = does_field_exist_folder(doc_path, field_to_replace)
+        while not is_field:
+            files_not_found = return_files_not_found_folders(doc_path, field_to_replace)
+            for file in files_not_found:
+                print(f"Field: {field_to_replace} does not exist in: {file}")
+            field_to_replace = input("Enter the field to replace (enter Q to quit or if done applying changes): ")
+            if field_to_replace == 'Q' or field_to_replace == 'q':
+                break
+            is_field = does_field_exist_folder(doc_path, field_to_replace)
 
         if field_to_replace == 'Q' or field_to_replace == 'q':
             break
 
         replacement_text = input(f"Enter what to change {field_to_replace} to: ")
-
         fields_dict[field_to_replace] = replacement_text
 
     apply_replacements(fields_dict, doc_path)
 
+def check_path(doc_path) -> bool:
+    doc_path = doc_path.strip()
+
+    if os.path.exists(doc_path) and os.path.isdir(doc_path):
+        return True
+    else:
+        print("Invalid path!")
+        return False
+
 def main():
     file_or_folder_quest = input("Will this be a folder (Y) or file (N) (Y/N): ").upper()
+    # while file_or_folder_quest != 'Y':
+        # file_or_folder_quest = input("Will this be a folder (Y) or file (N) (Y/N): ").upper()
     doc_path = input("Enter the path to the Word document: ")
-    if file_or_folder_quest == "N":
+    valid_path: bool = check_path(doc_path)
+    while valid_path == False:
+        doc_path = input("Enter the path to the Word document: ")
+        valid_path: bool = check_path(doc_path)
+    if file_or_folder_quest == "N" or file_or_folder_quest == 'n':
         modified_path_ques = input("Do you want a new modified file (Y/N): ")
         find_and_replace_field_single_file(doc_path, modified_path_ques)
-    elif file_or_folder_quest == "Y":
+    elif file_or_folder_quest == "Y" or file_or_folder_quest == 'y':
         replacements(doc_path)
 
 if __name__ == "__main__":
     main()
+
+
+# DONE: Make it so that if the file can't be found when asked to enter the path, it will say that it found the folder or file or
+# DONE: if it didn't find the folder or file.
+# DONE: Display if what they want change or are trying to change can't be found and let them re-type it.
+# DONE: Display the summary of the changes by shwoing what changes were made and show what exact files where changed in
+# DONE: this form: {file}: {field} -> {replacement}.
+# DONE: When changing the fields, make a value that stores which file the values are stored from.
+# DONE: Display how many documents have been changed
+# DONE: Make it so that when the user enters a folder and there's a folder in that folder, the program doesn't read that folder.
+# If the user enters the path to a folder and a folder fix it so that the program is able to read the folder.
