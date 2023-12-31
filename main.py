@@ -220,9 +220,12 @@ def check_path(doc_path) -> bool:
         return False
 
 def main():
-    file_or_folder_quest = input("Will this be a folder (Y) or file (N) (Y/N): ").upper()
-    # while file_or_folder_quest != 'Y':
-        # file_or_folder_quest = input("Will this be a folder (Y) or file (N) (Y/N): ").upper()
+    while True:
+        file_or_folder_quest = input("Will this be a folder (Y) or file (N) (Y/N): ")
+        if file_or_folder_quest in ['Y', 'N', 'y', 'n']:
+            break
+        else:
+            file_or_folder_quest = input("Will this be a folder (Y) or file (N) (Y/N): ")
     doc_path = input("Enter the path to the Word document: ")
     valid_path: bool = check_path(doc_path)
     while valid_path == False:
@@ -236,14 +239,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-# DONE: Make it so that if the file can't be found when asked to enter the path, it will say that it found the folder or file or
-# DONE: if it didn't find the folder or file.
-# DONE: Display if what they want change or are trying to change can't be found and let them re-type it.
-# DONE: Display the summary of the changes by shwoing what changes were made and show what exact files where changed in
-# DONE: this form: {file}: {field} -> {replacement}.
-# DONE: When changing the fields, make a value that stores which file the values are stored from.
-# DONE: Display how many documents have been changed
-# DONE: Make it so that when the user enters a folder and there's a folder in that folder, the program doesn't read that folder.
-# If the user enters the path to a folder and a folder fix it so that the program is able to read the folder.
